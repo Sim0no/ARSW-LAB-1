@@ -29,7 +29,7 @@ public class HostBlackListsValidator {
      * @param ipaddress suspicious host's IP address.
      * @return  Blacklists numbers where the given host's IP address was found.
      */
-    public List<Integer> checkHost(String ipaddress){
+    public List<Integer> checkHost(String ipaddress, int N){
         
         LinkedList<Integer> blackListOcurrences=new LinkedList<>();
         
@@ -37,16 +37,40 @@ public class HostBlackListsValidator {
         
         HostBlacklistsDataSourceFacade skds=HostBlacklistsDataSourceFacade.getInstance();
         
-        int checkedListsCount=0;
-        
-        for (int i=0;i<skds.getRegisteredServersCount() && ocurrencesCount<BLACK_LIST_ALARM_COUNT;i++){
-            checkedListsCount++;
-            
-            if (skds.isInBlackListServer(i, ipaddress)){
-                
-                blackListOcurrences.add(i);
-                
-                ocurrencesCount++;
+        //int checkedListsCount=0;
+
+        int aux = (skds.getRegisteredServersCount() / N) % 2 == 0 ? 0 : 1;
+
+        BlackListValidatorThread hilos[] = new BlackListValidatorThread[N+aux];
+        int inicial = 0;
+        int end = skds.getRegisteredServersCount() / N;
+        for (int i = 0; i < N+aux; i++) {
+            hilos[i] = new BlackListValidatorThread(ipaddress, skds, inicial, end, blackListOcurrences);
+            hilos[i].start();
+            inicial = end +1;
+            end +=  end;
+        }
+
+        boolean guarda = true;
+        // Ciclo para verificar que todos los hilos terminaron
+
+ /*       while (guarda){
+            guarda = false;
+            ciclo:
+            for (BlackListValidatorThread h:hilos) {
+                if (h.isAlive()){
+                    guarda = true;
+                    break ciclo;
+                }
+
+
+            }
+        }*/
+        for (BlackListValidatorThread h:hilos) {
+            try {
+                h.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
         }
         
@@ -57,7 +81,7 @@ public class HostBlackListsValidator {
             skds.reportAsTrustworthy(ipaddress);
         }                
         
-        LOG.log(Level.INFO, "Checked Black Lists:{0} of {1}", new Object[]{checkedListsCount, skds.getRegisteredServersCount()});
+        LOG.log(Level.INFO, "Checked Black Lists:{0} of {1}", new Object[]{skds.getRegisteredServersCount(), skds.getRegisteredServersCount()});
         
         return blackListOcurrences;
     }
