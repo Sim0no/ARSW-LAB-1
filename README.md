@@ -21,6 +21,8 @@
 	2. Inicie los tres hilos con 'start()'.
 	3. Ejecute y revise la salida por pantalla. 
 	4. Cambie el incio con 'start()' por 'run()'. Cómo cambia la salida?, por qué?.
+		run() es un metodo común y corriente de la interfaz runnable, lo que hace que el proceso sea iterativo.
+		Por otro lado el metodo start() crea un nuevo hilo y ejecuta el metodo run().
 
 **Parte II - Ejercicio Black List Search**
 
