@@ -8,6 +8,7 @@ package edu.eci.arsw.blacklistvalidator;
 import edu.eci.arsw.spamkeywordsdatasource.HostBlacklistsDataSourceFacade;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -17,7 +18,7 @@ import java.util.logging.Logger;
  */
 public class HostBlackListsValidator {
 
-    private static final int BLACK_LIST_ALARM_COUNT=5;
+    public static final int BLACK_LIST_ALARM_COUNT=5;
     
     /**
      * Check the given host's IP address in all the available black lists,
@@ -29,59 +30,61 @@ public class HostBlackListsValidator {
      * @param ipaddress suspicious host's IP address.
      * @return  Blacklists numbers where the given host's IP address was found.
      */
-    public List<Integer> checkHost(String ipaddress, int N){
+    public List<Integer> checkHost(String ipaddress, int n){
         
         LinkedList<Integer> blackListOcurrences=new LinkedList<>();
-        
-        int ocurrencesCount=0;
+
+        AtomicInteger checked =  new AtomicInteger(0) ;
+
+        AtomicInteger ocurrencesCount = new AtomicInteger(0) ;
         
         HostBlacklistsDataSourceFacade skds=HostBlacklistsDataSourceFacade.getInstance();
-        
-        //int checkedListsCount=0;
 
-        int aux = (skds.getRegisteredServersCount() / N) % 2 == 0 ? 0 : 1;
 
-        BlackListValidatorThread hilos[] = new BlackListValidatorThread[N+aux];
+        int aux = (skds.getRegisteredServersCount() / n) % 2 == 0 ? 0 : 1;
+
+        BlackListValidatorThread hilos[] = new BlackListValidatorThread[n+aux];
         int inicial = 0;
-        int end = skds.getRegisteredServersCount() / N;
-        for (int i = 0; i < N+aux; i++) {
-            hilos[i] = new BlackListValidatorThread(ipaddress, skds, inicial, end, blackListOcurrences);
-            hilos[i].start();
+        int end = skds.getRegisteredServersCount() / n;
+        int rango = skds.getRegisteredServersCount() / n;
+
+
+        for (int i = 0; i < n; i++) {
+            BlackListValidatorThread hilo = new BlackListValidatorThread(ipaddress, inicial, end, blackListOcurrences, ocurrencesCount, checked);
             inicial = end +1;
-            end +=  end;
+            end +=  rango;
+            hilos[i] = hilo;
         }
 
-        boolean guarda = true;
-        // Ciclo para verificar que todos los hilos terminaron
 
- /*       while (guarda){
-            guarda = false;
-            ciclo:
-            for (BlackListValidatorThread h:hilos) {
-                if (h.isAlive()){
-                    guarda = true;
-                    break ciclo;
-                }
+        if(aux == 1){
+
+            BlackListValidatorThread hilo = new BlackListValidatorThread(ipaddress, end, skds.getRegisteredServersCount(), blackListOcurrences, ocurrencesCount, checked);
+            hilos[n] = hilo;
+        }
 
 
-            }
-        }*/
-        for (BlackListValidatorThread h:hilos) {
+
+        for (BlackListValidatorThread t : hilos) {
+            t.start();
+        }
+        for (BlackListValidatorThread t : hilos) {
             try {
-                h.join();
+                t.join();
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                t.interrupt();
             }
         }
+
         
-        if (ocurrencesCount>=BLACK_LIST_ALARM_COUNT){
+        if (ocurrencesCount.get()>=BLACK_LIST_ALARM_COUNT){
             skds.reportAsNotTrustworthy(ipaddress);
         }
         else{
             skds.reportAsTrustworthy(ipaddress);
         }                
         
-        LOG.log(Level.INFO, "Checked Black Lists:{0} of {1}", new Object[]{skds.getRegisteredServersCount(), skds.getRegisteredServersCount()});
+        LOG.log(Level.INFO, "Checked Black Lists:{0} of {1}", new Object[]{checked, skds.getRegisteredServersCount()});
         
         return blackListOcurrences;
     }

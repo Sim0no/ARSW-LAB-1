@@ -3,6 +3,7 @@ package edu.eci.arsw.blacklistvalidator;
 import edu.eci.arsw.spamkeywordsdatasource.HostBlacklistsDataSourceFacade;
 
 import java.util.LinkedList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class BlackListValidatorThread extends Thread{
@@ -11,31 +12,30 @@ public class BlackListValidatorThread extends Thread{
     private HostBlacklistsDataSourceFacade repositorio;
     int rangoInicial,rangoFinal;
     private LinkedList<Integer> blackListOcurrences;
+    private AtomicInteger ocurrencesCount, checked;
 
+    public BlackListValidatorThread(String ipaddress, int a, int b, LinkedList<Integer> blackListOcurrences, AtomicInteger ocurrencesCount, AtomicInteger checked){
 
-    public BlackListValidatorThread(String ipaddress, HostBlacklistsDataSourceFacade skds, int a, int b, LinkedList<Integer> blackListOcurrences){
         ip = ipaddress;
-        repositorio = skds;
+        repositorio = HostBlacklistsDataSourceFacade.getInstance();
         rangoInicial = a;
         rangoFinal = b;
         this.blackListOcurrences = blackListOcurrences;
-
+        this.ocurrencesCount = ocurrencesCount;
+        this.checked = checked;
     }
+
 
     @Override
     public void run() {
-
-        for (int i = rangoInicial; i<rangoFinal; i++) {
+        for (int i = rangoInicial; i<rangoFinal && this.ocurrencesCount.get()< HostBlackListsValidator.BLACK_LIST_ALARM_COUNT; i++) {
+            this.checked.getAndIncrement();
             if (repositorio.isInBlackListServer(i, ip)) {
 
                 blackListOcurrences.add(i);
-
+                ocurrencesCount.getAndIncrement();
             }
         }
-        //Matar el hilo
-        Thread.currentThread().interrupt();
-
-
     }
 
     public int ocurrencias(){
